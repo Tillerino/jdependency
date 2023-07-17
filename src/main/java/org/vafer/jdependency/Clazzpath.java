@@ -34,7 +34,7 @@ import org.apache.commons.io.input.MessageDigestCalculatingInputStream;
 import static org.apache.commons.io.FilenameUtils.normalize;
 import static org.apache.commons.io.FilenameUtils.separatorsToUnix;
 
-import org.vafer.jdependency.asm.DependenciesClassAdapter;
+import org.vafer.jdependency.asm.DependenciesClassVisitor;
 import static org.vafer.jdependency.utils.StreamUtils.asStream;
 
 
@@ -174,7 +174,7 @@ public final class Clazzpath {
                     inputStream = calculatingInputStream;
                 }
 
-                final DependenciesClassAdapter v = new DependenciesClassAdapter(dependencies);
+                final DependenciesClassVisitor v = new DependenciesClassVisitor(dependencies);
                 new ClassReader(inputStream).accept(v, ClassReader.EXPAND_FRAMES | ClassReader.SKIP_DEBUG);
 
                 // get or create clazz

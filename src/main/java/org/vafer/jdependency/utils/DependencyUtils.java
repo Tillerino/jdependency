@@ -19,9 +19,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Set;
 
-import org.objectweb.asm.ClassReader;
-import org.vafer.jdependency.asm.DependenciesClassAdapter;
-
 /**
  * internal - do not use
  */

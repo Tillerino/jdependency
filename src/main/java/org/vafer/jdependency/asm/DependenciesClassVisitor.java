@@ -35,7 +35,7 @@ import org.vafer.jdependency.Dependencies.Thing.StaticMethod;
  * 1) reflection does a lot of unexpected things.
  * 2) analysing method calls with inheritance is insanely hard.
  */
-public class DependenciesClassAdapter extends ClassVisitor {
+public class DependenciesClassVisitor extends ClassVisitor {
     public static final int API = Opcodes.ASM9;
     private final Dependencies dependencies;
     private String name;
@@ -43,7 +43,7 @@ public class DependenciesClassAdapter extends ClassVisitor {
     private StaticInit staticInit;
     private NonStatic nonStatic;
 
-    public DependenciesClassAdapter(Dependencies dependencies) {
+    public DependenciesClassVisitor(Dependencies dependencies) {
         super(API);
         this.dependencies = dependencies;
     }
@@ -267,7 +267,9 @@ public class DependenciesClassAdapter extends ClassVisitor {
             public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
                 log("visitMethodInsn: %d %s %s %s %s", opcode, owner, name, descriptor, isInterface);
                 super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
-                dependencies.add(source, (opcode & Opcodes.INVOKESTATIC) != 0 ? new StaticMethod(owner, name, descriptor) : new NonStatic(owner));
+                dependencies.add(source, (opcode & Opcodes.INVOKESTATIC) != 0 && !name.equals("<init>")
+                  ? new StaticMethod(owner, name, descriptor)
+                  : new NonStatic(owner));
             }
 
             @Override

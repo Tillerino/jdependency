@@ -20,7 +20,7 @@ class DependenciesClassAdapterTest {
 
 	Dependencies dependencies = new Dependencies();
 
-	DependenciesClassAdapter adapter = new DependenciesClassAdapter(dependencies);
+	DependenciesClassVisitor adapter = new DependenciesClassVisitor(dependencies);
 
 	static class EmptyClass {
 
