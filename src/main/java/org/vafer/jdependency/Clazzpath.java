@@ -27,6 +27,7 @@ import java.util.jar.JarInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.zip.ZipEntry;
 
 import org.objectweb.asm.ClassReader;
 import org.apache.commons.io.input.MessageDigestCalculatingInputStream;
@@ -44,8 +45,9 @@ public final class Clazzpath {
     private final Map<String, Clazz> missing = new HashMap<>();
     private final Map<String, Clazz> clazzes = new HashMap<>();
     private final boolean versions;
+    public final Dependencies dependencies = new Dependencies();
 
-    private abstract static class Resource {
+    public abstract static class Resource {
 
         private static final int ext = ".class".length();
 
@@ -112,50 +114,48 @@ public final class Clazzpath {
 
         if (Files.isRegularFile(path)) {
 
-            return addClazzpathUnit(Files.newInputStream(path), pId);
+            return addJarClazzpathUnit(Files.newInputStream(path), pId);
 
         } else if (Files.isDirectory(path)) {
 
-            final String prefix = separatorsToUnix(normalize(path.toString() + '/'));
-
-            Iterable<Resource> resources = Files.walk(path)
-                .filter(p -> Files.isRegularFile(p))
-                .filter(p -> isValidResourceName(p.getFileName().toString()))
-                .map(p -> (Resource) new Resource(p.toString().substring(prefix.length())) {
-                    InputStream getInputStream() throws IOException {
-                        return Files.newInputStream(p);
-                    }
-                })::iterator;
-
-            return addClazzpathUnit(resources, pId, true);
+            return addDirectoryClassPathUnit(path, pId);
         }
 
         throw new IllegalArgumentException("neither file nor directory");
     }
 
-    public ClazzpathUnit addClazzpathUnit( final InputStream pInputStream, final String pId ) throws IOException {
-
-        final JarInputStream inputStream = new JarInputStream(pInputStream);
-
-        try {
+    public ClazzpathUnit addJarClazzpathUnit(final InputStream pInputStream, final String pId ) throws IOException {
+        try (JarInputStream inputStream = new JarInputStream(pInputStream)) {
 
             Iterable<Resource> resources = asStream(inputStream)
-                .map(e -> e.getName())
-                .filter(name -> isValidResourceName(name))
-                .map(name -> (Resource) new Resource(name) {
-                    InputStream getInputStream() throws IOException {
-                        return inputStream;
-                    }
-                })::iterator;
+              .map(ZipEntry::getName)
+              .filter(Clazzpath::isValidResourceName)
+              .map(name -> (Resource) new Resource(name) {
+                  InputStream getInputStream() throws IOException {
+                      return inputStream;
+                  }
+              })::iterator;
 
-           return addClazzpathUnit(resources, pId, false);
-
-        } finally {
-            inputStream.close();
+            return addClazzpathUnit(resources, pId, false);
         }
     }
 
-    private ClazzpathUnit addClazzpathUnit( final Iterable<Resource> resources, final String pId, boolean shouldCloseResourceStream ) throws IOException {
+    private ClazzpathUnit addDirectoryClassPathUnit(Path path, String pId) throws IOException {
+        final String prefix = separatorsToUnix(normalize(path.toString() + '/'));
+
+        Iterable<Resource> resources = Files.walk(path)
+          .filter(Files::isRegularFile)
+          .filter(p -> isValidResourceName(p.getFileName().toString()))
+          .map(p -> (Resource) new Resource(p.toString().substring(prefix.length())) {
+              InputStream getInputStream() throws IOException {
+                  return Files.newInputStream(p);
+              }
+          })::iterator;
+
+        return addClazzpathUnit(resources, pId, true);
+    }
+
+    public ClazzpathUnit addClazzpathUnit( final Iterable<Resource> resources, final String pId, boolean shouldCloseResourceStream ) throws IOException {
 
         final Map<String, Clazz> unitClazzes = new HashMap<>();
         final Map<String, Clazz> unitDependencies = new HashMap<>();
@@ -174,7 +174,7 @@ public final class Clazzpath {
                     inputStream = calculatingInputStream;
                 }
 
-                final DependenciesClassAdapter v = new DependenciesClassAdapter();
+                final DependenciesClassAdapter v = new DependenciesClassAdapter(dependencies);
                 new ClassReader(inputStream).accept(v, ClassReader.EXPAND_FRAMES | ClassReader.SKIP_DEBUG);
 
                 // get or create clazz
@@ -201,7 +201,7 @@ public final class Clazzpath {
 
 
                 // iterate through all dependencies
-                final Set<String> depNames = v.getDependencies();
+                final Set<String> depNames = Set.of();
                 for (String depName : depNames) {
 
                     Clazz dep = getClazz(depName);
